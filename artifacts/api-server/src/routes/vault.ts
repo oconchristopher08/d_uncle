@@ -1,10 +1,21 @@
 import { Router } from "express";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 const router = Router();
 
-const client = new DynamoDBClient({
+const dynamo = DynamoDBDocumentClient.from(
+  new DynamoDBClient({
+    region: process.env["AWS_REGION"] ?? "us-east-1",
+    credentials: {
+      accessKeyId: process.env["AWS_ACCESS_KEY_ID"] ?? "",
+      secretAccessKey: process.env["AWS_SECRET_ACCESS_KEY"] ?? "",
+    },
+  }),
+);
+
+const bedrock = new BedrockRuntimeClient({
   region: process.env["AWS_REGION"] ?? "us-east-1",
   credentials: {
     accessKeyId: process.env["AWS_ACCESS_KEY_ID"] ?? "",
@@ -12,16 +23,53 @@ const client = new DynamoDBClient({
   },
 });
 
-const dynamo = DynamoDBDocumentClient.from(client);
+const TABLE = "DUncle_Users";
 
+async function performTransfer(
+  sender: string,
+  receiver: string,
+  amount: number,
+  currency: string,
+): Promise<{ ok: boolean; message: string }> {
+  const [sRes, rRes] = await Promise.all([
+    dynamo.send(new GetCommand({ TableName: TABLE, Key: { username: sender } })),
+    dynamo.send(new GetCommand({ TableName: TABLE, Key: { username: receiver } })),
+  ]);
+
+  if (!sRes.Item || !rRes.Item) {
+    return { ok: false, message: "One of the users is missing from the vault!" };
+  }
+
+  const senderBal = parseFloat(String(sRes.Item[currency] ?? 0));
+  if (senderBal < amount) {
+    return { ok: false, message: "D'Uncle says: Not enough funds, Nephew!" };
+  }
+
+  await Promise.all([
+    dynamo.send(new UpdateCommand({
+      TableName: TABLE,
+      Key: { username: sender },
+      UpdateExpression: "set #b = :v",
+      ExpressionAttributeNames: { "#b": currency },
+      ExpressionAttributeValues: { ":v": senderBal - amount },
+    })),
+    dynamo.send(new UpdateCommand({
+      TableName: TABLE,
+      Key: { username: receiver },
+      UpdateExpression: "set #b = :v",
+      ExpressionAttributeNames: { "#b": currency },
+      ExpressionAttributeValues: { ":v": parseFloat(String(rRes.Item[currency] ?? 0)) + amount },
+    })),
+  ]);
+
+  return { ok: true, message: `Sent ${amount} ${currency} to ${receiver} 🌈` };
+}
+
+// GET BALANCE
 router.get("/get_balance", async (req, res) => {
   const username = (req.query["username"] as string) ?? "@DUncle_CEO";
-
   try {
-    const result = await dynamo.send(
-      new GetCommand({ TableName: "DUncle_Users", Key: { username } }),
-    );
-
+    const result = await dynamo.send(new GetCommand({ TableName: TABLE, Key: { username } }));
     if (result.Item) {
       res.json(result.Item);
     } else {
@@ -33,12 +81,10 @@ router.get("/get_balance", async (req, res) => {
   }
 });
 
+// SEND MONEY
 router.post("/send", async (req, res) => {
   const { sender, receiver, amount, currency = "balance_usd" } = req.body as {
-    sender: string;
-    receiver: string;
-    amount: number;
-    currency: string;
+    sender: string; receiver: string; amount: number; currency: string;
   };
 
   if (!sender || !receiver || !amount || amount <= 0) {
@@ -47,46 +93,85 @@ router.post("/send", async (req, res) => {
   }
 
   try {
-    const [senderRes, receiverRes] = await Promise.all([
-      dynamo.send(new GetCommand({ TableName: "DUncle_Users", Key: { username: sender } })),
-      dynamo.send(new GetCommand({ TableName: "DUncle_Users", Key: { username: receiver } })),
-    ]);
-
-    if (!senderRes.Item || !receiverRes.Item) {
-      res.status(404).json({ error: "One of the users is missing from the vault!" });
-      return;
+    const result = await performTransfer(sender, receiver, amount, currency);
+    if (result.ok) {
+      res.json({ message: result.message });
+    } else {
+      res.status(400).json({ error: result.message });
     }
-
-    const currentBalance = parseFloat(String(senderRes.Item[currency] ?? 0));
-    if (currentBalance < amount) {
-      res.status(400).json({ error: "D'Uncle says: Not enough funds, Nephew!" });
-      return;
-    }
-
-    const newSenderBal = currentBalance - amount;
-    const newReceiverBal = parseFloat(String(receiverRes.Item[currency] ?? 0)) + amount;
-
-    await Promise.all([
-      dynamo.send(new UpdateCommand({
-        TableName: "DUncle_Users",
-        Key: { username: sender },
-        UpdateExpression: "set #bal = :val",
-        ExpressionAttributeNames: { "#bal": currency },
-        ExpressionAttributeValues: { ":val": newSenderBal },
-      })),
-      dynamo.send(new UpdateCommand({
-        TableName: "DUncle_Users",
-        Key: { username: receiver },
-        UpdateExpression: "set #bal = :val",
-        ExpressionAttributeNames: { "#bal": currency },
-        ExpressionAttributeValues: { ":val": newReceiverBal },
-      })),
-    ]);
-
-    res.json({ message: `Success! ${amount} ${currency} sent to ${receiver} 🌈` });
   } catch (err) {
     req.log.error({ err }, "Send money error");
     res.status(500).json({ error: "Could not process the transaction." });
+  }
+});
+
+// ASK UNCLE — AI BRAIN
+router.post("/ask_uncle", async (req, res) => {
+  const { message, username = "@DUncle_CEO" } = req.body as {
+    message: string; username: string;
+  };
+
+  if (!message) {
+    res.status(400).json({ error: "No message provided." });
+    return;
+  }
+
+  try {
+    const userRes = await dynamo.send(new GetCommand({ TableName: TABLE, Key: { username } }));
+    const balanceInfo = userRes.Item
+      ? `USD: ${userRes.Item["balance_usd"] ?? 0}, PHP: ${userRes.Item["balance_php"] ?? 0}, USDT: ${userRes.Item["balance_usdt"] ?? 0}`
+      : "Balance unavailable";
+
+    const prompt = `You are D'Uncle: The Global Uncle. A friendly, colorful, and professional financial guide.
+User: ${username}
+Current Vault: ${balanceInfo}
+User Message: "${message}"
+
+Instruction: If the user wants to send money, respond ONLY with valid JSON:
+{ "action": "send", "receiver": "@username", "amount": 10, "currency": "balance_usd", "reply": "Your friendly message here" }
+If they are just chatting or asking questions, respond ONLY with valid JSON:
+{ "action": "chat", "reply": "Your friendly message here" }
+Do not include any text outside the JSON.`;
+
+    const body = JSON.stringify({
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: 512,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const command = new InvokeModelCommand({
+      modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+      contentType: "application/json",
+      accept: "application/json",
+      body,
+    });
+
+    const bedrockRes = await bedrock.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(bedrockRes.body));
+    const aiText: string = responseBody.content[0].text.trim();
+
+    let aiDecision: { action: string; receiver?: string; amount?: number; currency?: string; reply: string };
+    try {
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      aiDecision = JSON.parse(jsonMatch ? jsonMatch[0] : aiText);
+    } catch {
+      res.json({ reply: aiText, status: "chat" });
+      return;
+    }
+
+    if (aiDecision.action === "send" && aiDecision.receiver && aiDecision.amount && aiDecision.currency) {
+      const transfer = await performTransfer(username, aiDecision.receiver, aiDecision.amount, aiDecision.currency);
+      res.json({
+        reply: aiDecision.reply,
+        status: transfer.ok ? "paid" : "error",
+        details: transfer.message,
+      });
+    } else {
+      res.json({ reply: aiDecision.reply, status: "chat" });
+    }
+  } catch (err) {
+    req.log.error({ err }, "Bedrock error");
+    res.status(500).json({ error: "D'Uncle's brain is resting. Try again! 🧠" });
   }
 });
 

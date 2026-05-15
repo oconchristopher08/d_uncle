@@ -282,8 +282,144 @@ function SendModal({
   );
 }
 
+interface ChatMessage {
+  role: "user" | "uncle";
+  text: string;
+  status?: "paid" | "chat" | "error";
+}
+
+function AskUncleTab({ onBalanceChange }: { onBalanceChange: () => void }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: "uncle", text: "Hey Nephew! 🌈 I'm D'Uncle — your Global Financial Guide. Tell me what you need. I can send money, check your vault, or just chat!" },
+  ]);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const bottomRef = { current: null as HTMLDivElement | null };
+
+  async function handleAsk() {
+    const msg = input.trim();
+    if (!msg || thinking) return;
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", text: msg }]);
+    setThinking(true);
+    try {
+      const res = await fetch("/api/ask_uncle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, username: USERNAME }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessages((prev) => [...prev, { role: "uncle", text: data.error ?? "Something went wrong. Try again!", status: "error" }]);
+      } else {
+        setMessages((prev) => [...prev, { role: "uncle", text: data.reply, status: data.status }]);
+        if (data.status === "paid") onBalanceChange();
+      }
+    } catch {
+      setMessages((prev) => [...prev, { role: "uncle", text: "My brain took a nap. Try again! 🧠", status: "error" }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div
+        className="rounded-2xl p-4 mb-4 text-center"
+        style={{ backgroundColor: "#c084fc", border: "4px solid #000", boxShadow: "5px 5px 0px #000", transform: "rotate(-1deg)" }}
+      >
+        <p className="text-2xl mb-1">🧠</p>
+        <p className="font-semibold text-white text-sm">Ask D'Uncle anything — or tell him to send money!</p>
+      </div>
+
+      {/* Suggestion pills */}
+      <div className="flex gap-2 flex-wrap mb-4">
+        {[
+          "What's my balance?",
+          "Send 5 USD to @Newbie_User",
+          "Who are you?",
+        ].map((s) => (
+          <button
+            key={s}
+            onClick={() => setInput(s)}
+            className="text-xs rounded-full px-3 py-1 font-semibold"
+            style={{ backgroundColor: "#fde68a", border: "2px solid #000", boxShadow: "2px 2px 0px #000", cursor: "pointer" }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Chat bubbles */}
+      <div className="flex-1 space-y-3 overflow-y-auto pb-4" style={{ maxHeight: "340px" }}>
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div
+              className="rounded-2xl px-4 py-3 text-sm font-medium max-w-[80%]"
+              style={{
+                backgroundColor:
+                  m.role === "user" ? "#c084fc"
+                  : m.status === "paid" ? "#86efac"
+                  : m.status === "error" ? "#fca5a5"
+                  : "#fff",
+                color: m.role === "user" ? "#fff" : "#1f2937",
+                border: "3px solid #000",
+                boxShadow: "3px 3px 0px #000",
+                transform: m.role === "uncle" ? "rotate(-0.5deg)" : "rotate(0.5deg)",
+              }}
+            >
+              {m.status === "paid" && <span className="block text-xs font-bold mb-1 text-green-700">✅ Payment Executed</span>}
+              {m.text}
+            </div>
+          </div>
+        ))}
+        {thinking && (
+          <div className="flex justify-start">
+            <div
+              className="rounded-2xl px-4 py-3 text-sm font-medium"
+              style={{ backgroundColor: "#fff", border: "3px solid #000", boxShadow: "3px 3px 0px #000", color: "#7c3aed" }}
+            >
+              D'Uncle is thinking… 🧠
+            </div>
+          </div>
+        )}
+        <div ref={(el) => { bottomRef.current = el; }} />
+      </div>
+
+      {/* Input row */}
+      <div className="flex gap-2 mt-2">
+        <input
+          type="text"
+          placeholder="Talk to D'Uncle…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAsk(); }}
+          className="flex-1 rounded-2xl px-4 py-3 font-semibold text-gray-800 text-sm"
+          style={{ border: "3px solid #000", outline: "none", backgroundColor: "#fef9c3", boxShadow: "3px 3px 0px #000" }}
+        />
+        <button
+          onClick={handleAsk}
+          disabled={thinking || !input.trim()}
+          className="rounded-2xl px-4 py-3 font-bold text-white"
+          style={{
+            backgroundColor: "#7c3aed",
+            border: "3px solid #000",
+            boxShadow: thinking ? "1px 1px 0px #000" : "4px 4px 0px #000",
+            transform: thinking ? "translate(3px,3px)" : "",
+            cursor: thinking || !input.trim() ? "not-allowed" : "pointer",
+            opacity: !input.trim() ? 0.5 : 1,
+          }}
+        >
+          {thinking ? "…" : "→"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<"home" | "history" | "profile">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "brain">("home");
   const [balance, setBalance] = useState<Balance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -329,7 +465,15 @@ function App() {
         />
       )}
 
-      <div className="max-w-md mx-auto px-4 pt-6">
+      {/* BRAIN TAB */}
+      {activeTab === "brain" && (
+        <div className="max-w-md mx-auto px-4 pt-6">
+          <AskUncleTab onBalanceChange={fetchBalance} />
+        </div>
+      )}
+
+      {/* HOME TAB */}
+      <div className="max-w-md mx-auto px-4 pt-6" style={{ display: activeTab === "home" ? "block" : "none" }}>
 
         {/* HEADER */}
         <div className="flex items-center justify-between mb-8">
@@ -462,13 +606,12 @@ function App() {
         <div className="max-w-md mx-auto flex justify-around items-center py-3 px-4">
           {[
             { id: "home", icon: "🏠", label: "Home" },
-            { id: "history", icon: "📋", label: "History" },
-            { id: "profile", icon: "👤", label: "Profile" },
+            { id: "brain", icon: "🧠", label: "Ask Uncle" },
           ].map(({ id, icon, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id as typeof activeTab)}
-              className="flex flex-col items-center gap-0.5 px-4 py-1 rounded-xl transition-all"
+              className="flex flex-col items-center gap-0.5 px-6 py-1 rounded-xl transition-all"
               style={{
                 backgroundColor: activeTab === id ? "#fde68a" : "transparent",
                 border: activeTab === id ? "2px solid #000" : "2px solid transparent",
