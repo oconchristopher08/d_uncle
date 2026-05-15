@@ -57,6 +57,29 @@ function DoodleButton({
   );
 }
 
+const CONFETTI = ["🌈","💸","✨","🎉","💜","🌟","💰","🎊","💫","🦄"];
+
+function Confetti() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
+      {CONFETTI.map((emoji, i) => (
+        <span
+          key={i}
+          className="absolute text-2xl animate-bounce"
+          style={{
+            left: `${8 + i * 9}%`,
+            top: `${10 + (i % 3) * 12}%`,
+            animationDelay: `${i * 0.12}s`,
+            animationDuration: `${0.7 + (i % 3) * 0.3}s`,
+          }}
+        >
+          {emoji}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function SendModal({
   onClose,
   onSent,
@@ -70,12 +93,13 @@ function SendModal({
     currency: "balance_usd",
   });
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   async function handleSend() {
     if (!form.receiver || !form.amount) return;
     setSending(true);
-    setResult(null);
+    setError(null);
     try {
       const res = await fetch(SEND_URL, {
         method: "POST",
@@ -89,125 +113,178 @@ function SendModal({
       });
       const data = await res.json();
       if (res.ok) {
-        setResult({ ok: true, msg: data.message });
+        setSuccess(`🚀 D'Uncle just moved that money for you! Keep it colorful! 🌈`);
         onSent();
       } else {
-        setResult({ ok: false, msg: data.error });
+        setError(data.error ?? "Something went wrong.");
       }
     } catch {
-      setResult({ ok: false, msg: "Connection error. Try again." });
+      setError("D'Uncle's vault is acting up! Try again later.");
     } finally {
       setSending(false);
     }
   }
 
-  const currencyLabels = {
-    balance_usd: "USD 🇺🇸",
-    balance_php: "PHP 🇵🇭",
-    balance_usdt: "USDT 💚",
-  };
+  const currencies: { key: SendForm["currency"]; label: string; bg: string; flag: string }[] = [
+    { key: "balance_usd", label: "USD", bg: "#93c5fd", flag: "🇺🇸" },
+    { key: "balance_php", label: "PHP", bg: "#86efac", flag: "🇵🇭" },
+    { key: "balance_usdt", label: "USDT", bg: "#fde68a", flag: "💚" },
+  ];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
+    <>
+      {success && <Confetti />}
+
       <div
-        className="w-full max-w-md rounded-t-3xl p-6 pb-10"
-        style={{ backgroundColor: "#fff", border: "4px solid #000", borderBottom: "none" }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+        onClick={(e) => { if (e.target === e.currentTarget && !success) onClose(); }}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-semibold text-gray-800">Send Money 💸</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-gray-600"
-            style={{ border: "2px solid #000", backgroundColor: "#fef9c3" }}
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Receiver */}
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">
-          Send To (username)
-        </label>
-        <input
-          type="text"
-          placeholder="@username"
-          value={form.receiver}
-          onChange={(e) => setForm({ ...form, receiver: e.target.value })}
-          className="w-full rounded-xl px-4 py-3 mb-4 text-gray-800 font-semibold"
-          style={{ border: "3px solid #000", outline: "none", backgroundColor: "#fef9c3" }}
-        />
-
-        {/* Amount */}
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">
-          Amount
-        </label>
-        <input
-          type="number"
-          placeholder="0.00"
-          min="0"
-          value={form.amount}
-          onChange={(e) => setForm({ ...form, amount: e.target.value })}
-          className="w-full rounded-xl px-4 py-3 mb-4 text-gray-800 font-semibold"
-          style={{ border: "3px solid #000", outline: "none", backgroundColor: "#fef9c3" }}
-        />
-
-        {/* Currency picker */}
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
-          Currency
-        </label>
-        <div className="flex gap-2 mb-6">
-          {(Object.keys(currencyLabels) as Array<keyof typeof currencyLabels>).map((key) => (
-            <button
-              key={key}
-              onClick={() => setForm({ ...form, currency: key })}
-              className="flex-1 py-2 rounded-xl text-sm font-semibold transition-all"
-              style={{
-                backgroundColor: form.currency === key ? "#c084fc" : "#f3f4f6",
-                color: form.currency === key ? "#fff" : "#374151",
-                border: form.currency === key ? "3px solid #000" : "3px solid #d1d5db",
-                boxShadow: form.currency === key ? "3px 3px 0px #000" : "none",
-              }}
-            >
-              {currencyLabels[key]}
-            </button>
-          ))}
-        </div>
-
-        {/* Result message */}
-        {result && (
+        {/* SUCCESS SCREEN */}
+        {success ? (
           <div
-            className="rounded-xl px-4 py-3 mb-4 text-sm font-semibold"
+            className="w-full max-w-sm rounded-3xl p-8 text-center"
             style={{
-              backgroundColor: result.ok ? "#dcfce7" : "#fee2e2",
-              border: `2px solid ${result.ok ? "#16a34a" : "#dc2626"}`,
-              color: result.ok ? "#15803d" : "#dc2626",
+              backgroundColor: "#fff",
+              border: "4px solid #000",
+              boxShadow: "8px 8px 0px #000",
+              transform: "rotate(-1deg)",
             }}
           >
-            {result.msg}
+            <div className="text-6xl mb-4">🚀</div>
+            <h3
+              className="text-2xl font-semibold mb-2"
+              style={{ color: "#7c3aed" }}
+            >
+              Money Moved!
+            </h3>
+            <p className="text-gray-600 text-sm mb-6 font-medium">{success}</p>
+            <button
+              onClick={onClose}
+              className="w-full rounded-2xl py-3 font-semibold text-white"
+              style={{
+                backgroundColor: "#f472b6",
+                border: "3px solid #000",
+                boxShadow: "4px 4px 0px #000",
+                cursor: "pointer",
+              }}
+            >
+              Back to Vault 💜
+            </button>
+          </div>
+        ) : (
+          /* SEND FORM — Doodle Bubble */
+          <div
+            className="w-full max-w-sm rounded-3xl p-6"
+            style={{
+              backgroundColor: "#fff",
+              border: "4px solid #000",
+              boxShadow: "8px 8px 0px #000",
+              transform: "rotate(1deg)",
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-semibold text-gray-800">Send Love 💸</h3>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 rounded-full font-bold text-gray-700 flex items-center justify-center"
+                style={{ border: "3px solid #000", backgroundColor: "#fde68a", boxShadow: "3px 3px 0px #000", cursor: "pointer" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* To Whom */}
+            <label className="block text-xs font-semibold uppercase text-gray-500 mb-1">
+              To Whom?
+            </label>
+            <input
+              type="text"
+              placeholder="@username"
+              value={form.receiver}
+              onChange={(e) => setForm({ ...form, receiver: e.target.value })}
+              className="w-full rounded-2xl px-4 py-3 mb-4 font-semibold text-gray-800"
+              style={{ border: "3px solid #000", outline: "none", backgroundColor: "#fef9c3", boxShadow: "3px 3px 0px #000" }}
+            />
+
+            {/* How Much */}
+            <label className="block text-xs font-semibold uppercase text-gray-500 mb-1">
+              How Much?
+            </label>
+            <input
+              type="number"
+              placeholder="0.00"
+              min="0"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              className="w-full rounded-2xl px-4 py-3 mb-4 font-semibold text-gray-800"
+              style={{ border: "3px solid #000", outline: "none", backgroundColor: "#fef9c3", boxShadow: "3px 3px 0px #000" }}
+            />
+
+            {/* Currency Selector */}
+            <label className="block text-xs font-semibold uppercase text-gray-500 mb-2">
+              Which Currency?
+            </label>
+            <div className="flex gap-2 mb-5">
+              {currencies.map(({ key, label, bg, flag }) => (
+                <button
+                  key={key}
+                  onClick={() => setForm({ ...form, currency: key })}
+                  className="flex-1 py-2 rounded-2xl text-sm font-semibold"
+                  style={{
+                    backgroundColor: form.currency === key ? bg : "#f3f4f6",
+                    color: "#1f2937",
+                    border: form.currency === key ? "3px solid #000" : "3px solid #d1d5db",
+                    boxShadow: form.currency === key ? "3px 3px 0px #000" : "none",
+                    transform: form.currency === key ? "translate(-1px,-1px)" : "",
+                    cursor: "pointer",
+                  }}
+                >
+                  {flag} {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div
+                className="rounded-2xl px-4 py-3 mb-4 text-sm font-semibold"
+                style={{ backgroundColor: "#fee2e2", border: "3px solid #000", color: "#dc2626", boxShadow: "3px 3px 0px #000" }}
+              >
+                ❌ {error}
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 rounded-full py-3 font-semibold text-gray-700"
+                style={{ backgroundColor: "#e5e7eb", border: "3px solid #000", boxShadow: "3px 3px 0px #000", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={sending || !form.receiver || !form.amount}
+                className="flex-1 rounded-full py-3 font-semibold text-white"
+                style={{
+                  backgroundColor: "#f472b6",
+                  border: "3px solid #000",
+                  boxShadow: sending ? "1px 1px 0px #000" : "4px 4px 0px #000",
+                  transform: sending ? "translate(3px,3px)" : "",
+                  opacity: !form.receiver || !form.amount ? 0.5 : 1,
+                  cursor: sending || !form.receiver || !form.amount ? "not-allowed" : "pointer",
+                }}
+              >
+                {sending ? "Sending 🌀" : "Send! 💖"}
+              </button>
+            </div>
           </div>
         )}
-
-        {/* Send button */}
-        <button
-          onClick={handleSend}
-          disabled={sending || !form.receiver || !form.amount}
-          className="w-full rounded-2xl py-4 font-semibold text-white text-base transition-all"
-          style={{
-            backgroundColor: sending ? "#a78bfa" : "#7c3aed",
-            border: "3px solid #000",
-            boxShadow: "4px 4px 0px #000",
-            opacity: !form.receiver || !form.amount ? 0.5 : 1,
-            cursor: sending || !form.receiver || !form.amount ? "not-allowed" : "pointer",
-          }}
-        >
-          {sending ? "Sending… 🌀" : "Confirm Send 💸"}
-        </button>
       </div>
-    </div>
+    </>
   );
 }
 
