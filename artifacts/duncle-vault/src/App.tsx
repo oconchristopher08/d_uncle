@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const LAMBDA_URL = "https://3gs3mmwlsn3xgvjosfvbwtthom0cgcpc.lambda-url.us-east-1.on.aws/";
+const LAMBDA_URL = "https://3gs3mmwlsn3xgvjosfvbwtthom0cgcpc.lambda-url.us-east-1.on.aws/?username=@DUncle_CEO";
 const USERNAME = "@DUncle_CEO";
 
 interface Balance {
@@ -20,7 +20,7 @@ function App() {
       try {
         setLoading(true);
         setError(false);
-        const response = await fetch(`${LAMBDA_URL}?username=${USERNAME}`);
+        const response = await fetch(LAMBDA_URL);
         const data = await response.json();
         if (data.balance) {
           setBalance(data.balance);
