@@ -57,28 +57,19 @@ function DoodleButton({
   );
 }
 
-const CONFETTI = ["🌈","💸","✨","🎉","💜","🌟","💰","🎊","💫","🦄"];
-
-function Confetti() {
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
-      {CONFETTI.map((emoji, i) => (
-        <span
-          key={i}
-          className="absolute text-2xl animate-bounce"
-          style={{
-            left: `${8 + i * 9}%`,
-            top: `${10 + (i % 3) * 12}%`,
-            animationDelay: `${i * 0.12}s`,
-            animationDuration: `${0.7 + (i % 3) * 0.3}s`,
-          }}
-        >
-          {emoji}
-        </span>
-      ))}
-    </div>
-  );
+const shakeKeyframes = `
+@keyframes doodle-shake {
+  0%   { transform: rotate(-1deg) translate(0, 0); }
+  15%  { transform: rotate(-1deg) translate(-8px, 0); }
+  30%  { transform: rotate(-1deg) translate(8px, 0); }
+  45%  { transform: rotate(-1deg) translate(-6px, 0); }
+  60%  { transform: rotate(-1deg) translate(6px, 0); }
+  75%  { transform: rotate(-1deg) translate(-3px, 0); }
+  90%  { transform: rotate(-1deg) translate(3px, 0); }
+  100% { transform: rotate(-1deg) translate(0, 0); }
 }
+.doodle-shake { animation: doodle-shake 0.55s ease-in-out; }
+`;
 
 function SendModal({
   onClose,
@@ -95,6 +86,7 @@ function SendModal({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [shaking, setShaking] = useState(false);
 
   async function handleSend() {
     if (!form.receiver || !form.amount) return;
@@ -114,6 +106,9 @@ function SendModal({
       const data = await res.json();
       if (res.ok) {
         setSuccess(`🚀 D'Uncle just moved that money for you! Keep it colorful! 🌈`);
+        setShaking(true);
+        setTimeout(() => setShaking(false), 600);
+        if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
         onSent();
       } else {
         setError(data.error ?? "Something went wrong.");
@@ -133,7 +128,7 @@ function SendModal({
 
   return (
     <>
-      {success && <Confetti />}
+      <style>{shakeKeyframes}</style>
 
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -143,12 +138,11 @@ function SendModal({
         {/* SUCCESS SCREEN */}
         {success ? (
           <div
-            className="w-full max-w-sm rounded-3xl p-8 text-center"
+            className={`w-full max-w-sm rounded-3xl p-8 text-center${shaking ? " doodle-shake" : ""}`}
             style={{
               backgroundColor: "#fff",
               border: "4px solid #000",
               boxShadow: "8px 8px 0px #000",
-              transform: "rotate(-1deg)",
             }}
           >
             <div className="text-6xl mb-4">🚀</div>
