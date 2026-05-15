@@ -1,14 +1,50 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const LAMBDA_URL = "https://3gs3mmwlsn3xgvjosfvbwtthom0cgcpc.lambda-url.us-east-1.on.aws/";
+const USERNAME = "@DUncle_CEO";
+
+interface Balance {
+  balance_usd: string | number;
+  balance_php: string | number;
+  balance_usdt: string | number;
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState<"home" | "history" | "profile">("home");
+  const [balance, setBalance] = useState<Balance | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    async function updateBalance() {
+      try {
+        setLoading(true);
+        setError(false);
+        const response = await fetch(`${LAMBDA_URL}?username=${USERNAME}`);
+        const data = await response.json();
+        if (data.balance) {
+          setBalance(data.balance);
+        } else {
+          setError(true);
+        }
+      } catch {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+    updateBalance();
+  }, []);
+
+  const usd = balance ? `$${balance.balance_usd}` : loading ? "Loading…" : "$—";
+  const php = balance ? `₱${balance.balance_php}` : loading ? "…" : "₱—";
+  const usdt = balance ? `$${balance.balance_usdt}` : loading ? "…" : "$—";
 
   return (
     <div
       className="min-h-screen pb-20"
       style={{ backgroundColor: "#fef9c3", fontFamily: "'Fredoka', sans-serif" }}
     >
-      {/* Google Font */}
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');`}</style>
 
       <div className="max-w-md mx-auto px-4 pt-6">
@@ -17,7 +53,7 @@ function App() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">
-              Hello, <span style={{ color: "#7c3aed" }}>@YourName</span>! 🌈
+              Hello, <span style={{ color: "#7c3aed" }}>{USERNAME}</span>! 🌈
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">D'Uncle has your money safe!</p>
           </div>
@@ -43,16 +79,23 @@ function App() {
             transform: "rotate(1deg)",
           }}
         >
-          <p
-            className="uppercase tracking-widest text-xs font-semibold mb-2"
-            style={{ color: "#6b7280" }}
-          >
+          <p className="uppercase tracking-widest text-xs font-semibold mb-2" style={{ color: "#6b7280" }}>
             Your Global Vault
           </p>
-          <h2 className="text-5xl font-semibold text-gray-800 mb-2">$1,250.00</h2>
+          <h2
+            className="text-5xl font-semibold text-gray-800 mb-2 transition-all"
+            style={{ opacity: loading ? 0.4 : 1 }}
+          >
+            {usd}
+          </h2>
           <p className="font-medium" style={{ color: "#7c3aed" }}>
-            Equivalent to ₱70,500.00
+            {balance ? `Equivalent to ₱${balance.balance_php}` : loading ? "Fetching vault…" : "Could not load"}
           </p>
+          {error && (
+            <p className="text-xs mt-2" style={{ color: "#dc2626" }}>
+              ⚠️ Couldn't reach the vault. Check your connection.
+            </p>
+          )}
         </div>
 
         {/* CURRENCY CARDS */}
@@ -66,10 +109,8 @@ function App() {
               transform: "rotate(-2deg)",
             }}
           >
-            <p className="text-xs font-semibold uppercase" style={{ color: "#1e40af" }}>
-              PHP Balance
-            </p>
-            <p className="text-xl font-semibold text-gray-800 mt-1">₱70,500</p>
+            <p className="text-xs font-semibold uppercase" style={{ color: "#1e40af" }}>PHP Balance</p>
+            <p className="text-xl font-semibold text-gray-800 mt-1" style={{ opacity: loading ? 0.4 : 1 }}>{php}</p>
           </div>
           <div
             className="rounded-2xl p-4"
@@ -80,19 +121,17 @@ function App() {
               transform: "rotate(2deg)",
             }}
           >
-            <p className="text-xs font-semibold uppercase" style={{ color: "#166534" }}>
-              USDT Balance
-            </p>
-            <p className="text-xl font-semibold text-gray-800 mt-1">$1,250</p>
+            <p className="text-xs font-semibold uppercase" style={{ color: "#166534" }}>USDT Balance</p>
+            <p className="text-xl font-semibold text-gray-800 mt-1" style={{ opacity: loading ? 0.4 : 1 }}>{usdt}</p>
           </div>
         </div>
 
         {/* QUICK ACTIONS */}
         <div className="flex justify-around gap-3 mb-8">
           {[
-            { label: "Send", emoji: "💸", bg: "#f472b6", text: "#fff", hoverBg: "#ec4899" },
-            { label: "Request", emoji: "📥", bg: "#facc15", text: "#1f2937", hoverBg: "#eab308" },
-            { label: "Swap", emoji: "🔄", bg: "#c084fc", text: "#fff", hoverBg: "#a855f7" },
+            { label: "Send", emoji: "💸", bg: "#f472b6", text: "#fff" },
+            { label: "Request", emoji: "📥", bg: "#facc15", text: "#1f2937" },
+            { label: "Swap", emoji: "🔄", bg: "#c084fc", text: "#fff" },
           ].map(({ label, emoji, bg, text }) => (
             <button
               key={label}
@@ -152,15 +191,13 @@ function App() {
                     <p className="text-xs text-gray-500">{type}</p>
                   </div>
                 </div>
-                <span className="text-sm font-semibold" style={{ color }}>
-                  {amount}
-                </span>
+                <span className="text-sm font-semibold" style={{ color }}>{amount}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* EXCHANGE RATES STRIP */}
+        {/* EXCHANGE RATES */}
         <div
           className="rounded-2xl p-4 mb-6"
           style={{
@@ -189,10 +226,7 @@ function App() {
       {/* BOTTOM NAV */}
       <div
         className="fixed bottom-0 left-0 w-full"
-        style={{
-          backgroundColor: "#fff",
-          borderTop: "4px solid #000",
-        }}
+        style={{ backgroundColor: "#fff", borderTop: "4px solid #000" }}
       >
         <div className="max-w-md mx-auto flex justify-around items-center py-3 px-4">
           {[
@@ -211,10 +245,7 @@ function App() {
               }}
             >
               <span className="text-xl">{icon}</span>
-              <span
-                className="text-xs font-semibold"
-                style={{ color: activeTab === id ? "#7c3aed" : "#9ca3af" }}
-              >
+              <span className="text-xs font-semibold" style={{ color: activeTab === id ? "#7c3aed" : "#9ca3af" }}>
                 {label}
               </span>
             </button>
