@@ -418,12 +418,24 @@ function AskUncleTab({ onBalanceChange }: { onBalanceChange: () => void }) {
   );
 }
 
+interface Transaction {
+  transaction_id: string;
+  sender: string;
+  receiver: string;
+  amount: number;
+  currency: string;
+  timestamp: string;
+  status: string;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<"home" | "brain">("home");
   const [balance, setBalance] = useState<Balance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showSend, setShowSend] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   async function fetchBalance() {
     try {
@@ -445,7 +457,25 @@ function App() {
     }
   }
 
-  useEffect(() => { fetchBalance(); }, []);
+  async function fetchHistory() {
+    try {
+      setHistoryLoading(true);
+      const res = await fetch(`/api/get_history?username=${encodeURIComponent(USERNAME)}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setTransactions(data);
+    } catch {
+      // silently fail — history is non-critical
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function refreshAll() {
+    fetchBalance();
+    fetchHistory();
+  }
+
+  useEffect(() => { fetchBalance(); fetchHistory(); }, []);
 
   const usd = balance ? `$${balance.balance_usd ?? "—"}` : loading ? "Loading…" : "$—";
   const php = balance ? `₱${balance.balance_php ?? "—"}` : loading ? "…" : "₱—";
@@ -461,14 +491,14 @@ function App() {
       {showSend && (
         <SendModal
           onClose={() => setShowSend(false)}
-          onSent={() => { setTimeout(fetchBalance, 500); }}
+          onSent={() => { setTimeout(refreshAll, 500); }}
         />
       )}
 
       {/* BRAIN TAB */}
       {activeTab === "brain" && (
         <div className="max-w-md mx-auto px-4 pt-6">
-          <AskUncleTab onBalanceChange={fetchBalance} />
+          <AskUncleTab onBalanceChange={refreshAll} />
         </div>
       )}
 
@@ -550,31 +580,54 @@ function App() {
           className="rounded-2xl p-5 mb-6"
           style={{ backgroundColor: "#fff", border: "4px solid #000", boxShadow: "6px 6px 0px #000" }}
         >
-          <h3 className="font-semibold text-gray-800 text-base mb-4">Recent Transactions</h3>
-          <div className="space-y-3">
-            {[
-              { name: "Maria Santos", type: "Received", amount: "+$50.00", color: "#16a34a", bg: "#dcfce7", emoji: "📨" },
-              { name: "Coffee Shop", type: "Sent", amount: "-$3.50", color: "#dc2626", bg: "#fee2e2", emoji: "☕" },
-              { name: "Juan Dela Cruz", type: "Received", amount: "+$200.00", color: "#16a34a", bg: "#dcfce7", emoji: "📨" },
-              { name: "Online Shop", type: "Sent", amount: "-$45.00", color: "#dc2626", bg: "#fee2e2", emoji: "🛍️" },
-            ].map(({ name, type, amount, color, bg, emoji }) => (
-              <div key={name} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-base"
-                    style={{ backgroundColor: bg, border: "2px solid #000" }}
-                  >
-                    {emoji}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{name}</p>
-                    <p className="text-xs text-gray-500">{type}</p>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold" style={{ color }}>{amount}</span>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-800 text-base">Recent Transactions</h3>
+            <button
+              onClick={fetchHistory}
+              className="text-xs rounded-full px-3 py-1 font-semibold"
+              style={{ backgroundColor: "#fde68a", border: "2px solid #000", boxShadow: "2px 2px 0px #000", cursor: "pointer" }}
+            >
+              ↻ Refresh
+            </button>
           </div>
+
+          {historyLoading ? (
+            <p className="text-sm text-gray-400 text-center py-4">Fetching ledger… 📋</p>
+          ) : transactions.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">No transactions yet, Nephew! 💸</p>
+          ) : (
+            <div className="space-y-3">
+              {transactions.slice(0, 6).map((tx) => {
+                const isSent = tx.sender === USERNAME;
+                const counterparty = isSent ? tx.receiver : tx.sender;
+                const currencySymbol = tx.currency === "balance_php" ? "₱" : "$";
+                const amountStr = `${isSent ? "-" : "+"}${currencySymbol}${tx.amount}`;
+                const date = new Date(tx.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                return (
+                  <div key={tx.transaction_id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-base"
+                        style={{
+                          backgroundColor: isSent ? "#fee2e2" : "#dcfce7",
+                          border: "2px solid #000",
+                        }}
+                      >
+                        {isSent ? "💸" : "📨"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{counterparty}</p>
+                        <p className="text-xs text-gray-500">{isSent ? "Sent" : "Received"} · {date}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold" style={{ color: isSent ? "#dc2626" : "#16a34a" }}>
+                      {amountStr}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* EXCHANGE RATES */}

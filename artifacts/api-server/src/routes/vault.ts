@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, UpdateCommand, PutCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { randomUUID } from "crypto";
 
 const router = Router();
 
@@ -24,6 +25,7 @@ const bedrock = new BedrockRuntimeClient({
 });
 
 const TABLE = "DUncle_Users";
+const TX_TABLE = "DUncle_Transactions";
 
 async function performTransfer(
   sender: string,
@@ -45,20 +47,36 @@ async function performTransfer(
     return { ok: false, message: "D'Uncle says: Not enough funds, Nephew!" };
   }
 
+  const newSenderBal = senderBal - amount;
+  const newReceiverBal = parseFloat(String(rRes.Item[currency] ?? 0)) + amount;
+
+  // Update both balances + write ledger record in parallel
   await Promise.all([
     dynamo.send(new UpdateCommand({
       TableName: TABLE,
       Key: { username: sender },
       UpdateExpression: "set #b = :v",
       ExpressionAttributeNames: { "#b": currency },
-      ExpressionAttributeValues: { ":v": senderBal - amount },
+      ExpressionAttributeValues: { ":v": newSenderBal },
     })),
     dynamo.send(new UpdateCommand({
       TableName: TABLE,
       Key: { username: receiver },
       UpdateExpression: "set #b = :v",
       ExpressionAttributeNames: { "#b": currency },
-      ExpressionAttributeValues: { ":v": parseFloat(String(rRes.Item[currency] ?? 0)) + amount },
+      ExpressionAttributeValues: { ":v": newReceiverBal },
+    })),
+    dynamo.send(new PutCommand({
+      TableName: TX_TABLE,
+      Item: {
+        transaction_id: randomUUID(),
+        sender,
+        receiver,
+        amount,
+        currency,
+        timestamp: new Date().toISOString(),
+        status: "Success",
+      },
     })),
   ]);
 
@@ -105,6 +123,22 @@ router.post("/send", async (req, res) => {
   }
 });
 
+// GET HISTORY
+router.get("/get_history", async (req, res) => {
+  const username = (req.query["username"] as string) ?? "@DUncle_CEO";
+  try {
+    const result = await dynamo.send(new ScanCommand({ TableName: TX_TABLE }));
+    const all = (result.Items ?? []) as Array<Record<string, unknown>>;
+    const userTxs = all
+      .filter((t) => t["sender"] === username || t["receiver"] === username)
+      .sort((a, b) => String(b["timestamp"]).localeCompare(String(a["timestamp"])));
+    res.json(userTxs);
+  } catch (err) {
+    req.log.error({ err }, "Get history error");
+    res.status(500).json({ error: "Could not fetch history." });
+  }
+});
+
 // ASK UNCLE — AI BRAIN
 router.post("/ask_uncle", async (req, res) => {
   const { message, username = "@DUncle_CEO" } = req.body as {
@@ -139,14 +173,13 @@ Do not include any text outside the JSON.`;
       messages: [{ role: "user", content: prompt }],
     });
 
-    const command = new InvokeModelCommand({
+    const bedrockRes = await bedrock.send(new InvokeModelCommand({
       modelId: "anthropic.claude-3-haiku-20240307-v1:0",
       contentType: "application/json",
       accept: "application/json",
       body,
-    });
+    }));
 
-    const bedrockRes = await bedrock.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(bedrockRes.body));
     const aiText: string = responseBody.content[0].text.trim();
 
