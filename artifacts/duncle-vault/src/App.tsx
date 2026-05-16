@@ -428,8 +428,143 @@ interface Transaction {
   status: string;
 }
 
+function ProfileTab({
+  balance,
+  transactions,
+}: {
+  balance: Balance | null;
+  transactions: Transaction[];
+}) {
+  const totalSent = transactions.filter((t) => t.sender === USERNAME).length;
+  const totalReceived = transactions.filter((t) => t.receiver === USERNAME).length;
+  const totalSentUsd = transactions
+    .filter((t) => t.sender === USERNAME && t.currency === "balance_usd")
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalReceivedUsd = transactions
+    .filter((t) => t.receiver === USERNAME && t.currency === "balance_usd")
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+
+  const usdBal = Number(balance?.balance_usd ?? 0);
+  const tier = usdBal >= 5000 ? "💎 Diamond" : usdBal >= 1000 ? "🥇 VIP Gold" : usdBal >= 500 ? "🥈 Silver" : "🌱 Starter";
+  const tierColor = usdBal >= 5000 ? "#06b6d4" : usdBal >= 1000 ? "#f59e0b" : usdBal >= 500 ? "#94a3b8" : "#86efac";
+
+  const [copied, setCopied] = useState(false);
+
+  function copyCard() {
+    const text = `🌍 D'Uncle Vault\n👤 ${USERNAME}\n💰 $${balance?.balance_usd ?? "—"} USD | ₱${balance?.balance_php ?? "—"} PHP\n🏅 Status: ${tier}\n\n"Keep it colorful, keep it global!" 🌈`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="max-w-md mx-auto px-4 pt-6 pb-6">
+      {/* VAULT CARD — SHAREABLE */}
+      <div
+        className="rounded-3xl p-6 mb-6 text-center relative overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, #a78bfa 0%, #60a5fa 50%, #34d399 100%)",
+          border: "4px solid #000",
+          boxShadow: "8px 8px 0px #000",
+          transform: "rotate(-1deg)",
+        }}
+      >
+        {/* Doodle star decorations */}
+        <span style={{ position: "absolute", top: 10, left: 14, fontSize: 22, opacity: 0.6 }}>✦</span>
+        <span style={{ position: "absolute", top: 18, right: 20, fontSize: 14, opacity: 0.5 }}>✦</span>
+        <span style={{ position: "absolute", bottom: 12, left: 30, fontSize: 12, opacity: 0.4 }}>✦</span>
+
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center text-3xl font-bold text-white mx-auto mb-3"
+          style={{ backgroundColor: "rgba(255,255,255,0.25)", border: "3px solid #fff" }}
+        >
+          U
+        </div>
+        <h2 className="text-white font-semibold text-xl">{USERNAME}</h2>
+        <p className="text-white text-sm opacity-80 mb-3">D'Uncle Global Vault</p>
+
+        {/* Status Badge */}
+        <div
+          className="inline-block rounded-full px-4 py-1 font-semibold text-sm mb-4"
+          style={{ backgroundColor: tierColor, border: "2px solid #000", boxShadow: "2px 2px 0px #000" }}
+        >
+          {tier}
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-white text-center">
+          <div>
+            <p className="text-xs opacity-70">USD</p>
+            <p className="font-semibold text-sm">${balance?.balance_usd ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs opacity-70">PHP</p>
+            <p className="font-semibold text-sm">₱{balance?.balance_php ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs opacity-70">USDT</p>
+            <p className="font-semibold text-sm">${balance?.balance_usdt ?? "—"}</p>
+          </div>
+        </div>
+
+        <button
+          onClick={copyCard}
+          className="mt-4 rounded-full px-5 py-2 text-sm font-semibold"
+          style={{
+            backgroundColor: copied ? "#16a34a" : "#fff",
+            color: copied ? "#fff" : "#000",
+            border: "2px solid #000",
+            boxShadow: "3px 3px 0px #000",
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          {copied ? "✅ Copied!" : "📋 Copy Vault Card"}
+        </button>
+      </div>
+
+      {/* STATS ROW */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        {[
+          { label: "Sends", value: totalSent, emoji: "💸", bg: "#fce7f3", rotate: "rotate(-2deg)" },
+          { label: "Received", value: totalReceived, emoji: "💰", bg: "#dcfce7", rotate: "rotate(2deg)" },
+          { label: "USD Sent", value: `$${totalSentUsd.toFixed(2)}`, emoji: "📤", bg: "#fde68a", rotate: "rotate(1deg)" },
+          { label: "USD In", value: `$${totalReceivedUsd.toFixed(2)}`, emoji: "📥", bg: "#e0e7ff", rotate: "rotate(-1deg)" },
+        ].map(({ label, value, emoji, bg, rotate }) => (
+          <div
+            key={label}
+            className="rounded-2xl p-4 text-center"
+            style={{ backgroundColor: bg, border: "3px solid #000", boxShadow: "4px 4px 0px #000", transform: rotate }}
+          >
+            <p className="text-2xl mb-1">{emoji}</p>
+            <p className="text-xl font-semibold text-gray-800">{value}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* UNCLE QUOTE */}
+      <div
+        className="rounded-2xl p-4 text-center"
+        style={{
+          backgroundColor: "#f3e8ff",
+          border: "3px solid #000",
+          boxShadow: "4px 4px 0px #000",
+          transform: "rotate(1deg)",
+        }}
+      >
+        <p className="text-2xl mb-1">🧠</p>
+        <p className="text-sm font-semibold text-purple-700 italic">
+          "Every peso sent is a bridge built. Keep your vault colorful, Nephew!"
+        </p>
+        <p className="text-xs text-gray-400 mt-1">— D'Uncle</p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<"home" | "brain">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "brain" | "profile">("home");
   const [balance, setBalance] = useState<Balance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -575,54 +710,61 @@ function App() {
           <DoodleButton label="Swap" emoji="🔄" bg="#c084fc" text="#fff" />
         </div>
 
-        {/* RECENT TRANSACTIONS */}
-        <div
-          className="rounded-2xl p-5 mb-6"
-          style={{ backgroundColor: "#fff", border: "4px solid #000", boxShadow: "6px 6px 0px #000" }}
-        >
+        {/* RECENT ACTIVITY — DOODLE STICKERS */}
+        <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800 text-base">Recent Transactions</h3>
+            <h3 className="text-lg font-semibold text-gray-800">Recent Activity 📜</h3>
             <button
               onClick={fetchHistory}
-              className="text-xs rounded-full px-3 py-1 font-semibold"
-              style={{ backgroundColor: "#fde68a", border: "2px solid #000", boxShadow: "2px 2px 0px #000", cursor: "pointer" }}
+              className="text-xs font-semibold"
+              style={{ color: "#7c3aed", textDecoration: "underline", cursor: "pointer", background: "none", border: "none" }}
             >
               ↻ Refresh
             </button>
           </div>
 
           {historyLoading ? (
-            <p className="text-sm text-gray-400 text-center py-4">Fetching ledger… 📋</p>
+            <p className="text-center text-gray-400 text-sm italic py-4">D'Uncle is fetching your receipts… 📋</p>
           ) : transactions.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">No transactions yet, Nephew! 💸</p>
+            <p className="text-center text-gray-400 text-sm italic py-4">No transactions yet. Be the first to send some love! 💖</p>
           ) : (
             <div className="space-y-3">
-              {transactions.slice(0, 6).map((tx) => {
+              {transactions.slice(0, 6).map((tx, i) => {
                 const isSent = tx.sender === USERNAME;
                 const counterparty = isSent ? tx.receiver : tx.sender;
+                const currencyLabel = tx.currency.replace("balance_", "").toUpperCase();
                 const currencySymbol = tx.currency === "balance_php" ? "₱" : "$";
-                const amountStr = `${isSent ? "-" : "+"}${currencySymbol}${tx.amount}`;
-                const date = new Date(tx.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                const amountStr = `${isSent ? "−" : "+"}${currencySymbol}${tx.amount} ${currencyLabel}`;
+                const date = new Date(tx.timestamp).toLocaleString("en-US", {
+                  month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                });
+                const bg = isSent ? "#fce7f3" : "#dcfce7";
+                const amountColor = isSent ? "#db2777" : "#16a34a";
+                const rotate = i % 2 === 0 ? "rotate(1deg)" : "rotate(-1deg)";
                 return (
-                  <div key={tx.transaction_id} className="flex items-center justify-between">
+                  <div
+                    key={tx.transaction_id}
+                    className="flex justify-between items-center p-3 rounded-2xl"
+                    style={{
+                      backgroundColor: bg,
+                      border: "3px solid #000",
+                      boxShadow: "4px 4px 0px #000",
+                      transform: rotate,
+                    }}
+                  >
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-base"
-                        style={{
-                          backgroundColor: isSent ? "#fee2e2" : "#dcfce7",
-                          border: "2px solid #000",
-                        }}
-                      >
-                        {isSent ? "💸" : "📨"}
-                      </div>
+                      <span className="text-2xl">{isSent ? "💸" : "💰"}</span>
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{counterparty}</p>
-                        <p className="text-xs text-gray-500">{isSent ? "Sent" : "Received"} · {date}</p>
+                        <p className="text-xs font-bold uppercase opacity-60">{isSent ? "Sent" : "Received"}</p>
+                        <p className="font-semibold text-gray-800 text-sm">
+                          {isSent ? `To ${counterparty}` : `From ${counterparty}`}
+                        </p>
                       </div>
                     </div>
-                    <span className="text-sm font-semibold" style={{ color: isSent ? "#dc2626" : "#16a34a" }}>
-                      {amountStr}
-                    </span>
+                    <div className="text-right">
+                      <p className="font-bold text-sm" style={{ color: amountColor }}>{amountStr}</p>
+                      <p className="text-gray-400" style={{ fontSize: "10px" }}>{date}</p>
+                    </div>
                   </div>
                 );
               })}
@@ -651,6 +793,11 @@ function App() {
         </div>
       </div>
 
+      {/* PROFILE TAB */}
+      {activeTab === "profile" && (
+        <ProfileTab balance={balance} transactions={transactions} />
+      )}
+
       {/* BOTTOM NAV */}
       <div
         className="fixed bottom-0 left-0 w-full"
@@ -660,11 +807,12 @@ function App() {
           {[
             { id: "home", icon: "🏠", label: "Home" },
             { id: "brain", icon: "🧠", label: "Ask Uncle" },
+            { id: "profile", icon: "👤", label: "Profile" },
           ].map(({ id, icon, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id as typeof activeTab)}
-              className="flex flex-col items-center gap-0.5 px-6 py-1 rounded-xl transition-all"
+              className="flex flex-col items-center gap-0.5 px-5 py-1 rounded-xl transition-all"
               style={{
                 backgroundColor: activeTab === id ? "#fde68a" : "transparent",
                 border: activeTab === id ? "2px solid #000" : "2px solid transparent",
@@ -678,9 +826,6 @@ function App() {
             </button>
           ))}
         </div>
-        <p className="text-center text-xs text-gray-400 italic pb-2 font-medium">
-          "Keep it colorful, keep it global!" — D'Uncle 🌍
-        </p>
       </div>
     </div>
   );
