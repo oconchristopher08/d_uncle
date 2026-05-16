@@ -449,6 +449,10 @@ function ProfileTab({
   const tierColor = usdBal >= 5000 ? "#06b6d4" : usdBal >= 1000 ? "#f59e0b" : usdBal >= 500 ? "#94a3b8" : "#86efac";
 
   const [copied, setCopied] = useState(false);
+  const [currentLimit, setCurrentLimit] = useState<number>(1000);
+  const [newLimit, setNewLimit] = useState("");
+  const [limitSaving, setLimitSaving] = useState(false);
+  const [limitMsg, setLimitMsg] = useState<string | null>(null);
 
   function copyCard() {
     const text = `🌍 D'Uncle Vault\n👤 ${USERNAME}\n💰 $${balance?.balance_usd ?? "—"} USD | ₱${balance?.balance_php ?? "—"} PHP\n🏅 Status: ${tier}\n\n"Keep it colorful, keep it global!" 🌈`;
@@ -456,6 +460,36 @@ function ProfileTab({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  async function handleUpdateLimit() {
+    const val = parseFloat(newLimit);
+    if (!newLimit || isNaN(val) || val < 0) {
+      setLimitMsg("D'Uncle needs a valid number! 🌈");
+      return;
+    }
+    setLimitSaving(true);
+    setLimitMsg(null);
+    try {
+      const res = await fetch("/api/update_limit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: USERNAME, limit: val }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentLimit(val);
+        setNewLimit("");
+        setLimitMsg("✅ Guardrail set! D'Uncle is on watch. 🛡️");
+      } else {
+        setLimitMsg(data.error ?? "Failed to update.");
+      }
+    } catch {
+      setLimitMsg("Network error. Try again.");
+    } finally {
+      setLimitSaving(false);
+      setTimeout(() => setLimitMsg(null), 3000);
+    }
   }
 
   return (
@@ -541,6 +575,82 @@ function ProfileTab({
             <p className="text-xs font-semibold text-gray-500 uppercase">{label}</p>
           </div>
         ))}
+      </div>
+
+      {/* POLICY CENTER — GUARDRAILS */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <h3 className="text-lg font-semibold text-gray-800">Uncle's Guardrails</h3>
+          <span className="text-xl">🛡️</span>
+        </div>
+
+        <div
+          className="rounded-2xl p-4 mb-3"
+          style={{
+            backgroundColor: "#ede9fe",
+            border: "3px solid #000",
+            boxShadow: "4px 4px 0px #000",
+            transform: "rotate(-1deg)",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase" style={{ color: "#6d28d9" }}>Daily Spend Limit</p>
+              <p className="text-2xl font-semibold text-gray-800">${currentLimit.toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Blocks any single payment above this amount</p>
+            </div>
+            <span className="text-3xl">🚦</span>
+          </div>
+        </div>
+
+        <div
+          className="rounded-2xl p-4"
+          style={{
+            backgroundColor: "#fff",
+            border: "3px solid #000",
+            boxShadow: "4px 4px 0px #000",
+          }}
+        >
+          <p className="text-xs font-bold uppercase text-gray-500 mb-3">Update Limit</p>
+          <div className="flex gap-2 items-center">
+            <input
+              type="number"
+              min="0"
+              value={newLimit}
+              onChange={(e) => setNewLimit(e.target.value)}
+              placeholder="e.g. 500"
+              className="flex-1 rounded-xl px-3 py-2 text-sm font-semibold text-center"
+              style={{
+                border: "2px solid #000",
+                outline: "none",
+                backgroundColor: "#fef9c3",
+              }}
+            />
+            <button
+              onClick={handleUpdateLimit}
+              disabled={limitSaving}
+              className="rounded-full px-4 py-2 text-sm font-bold"
+              style={{
+                backgroundColor: limitSaving ? "#e5e7eb" : "#a78bfa",
+                color: "#fff",
+                border: "2px solid #000",
+                boxShadow: limitSaving ? "none" : "3px 3px 0px #000",
+                cursor: limitSaving ? "not-allowed" : "pointer",
+                transform: limitSaving ? "translate(2px,2px)" : "",
+              }}
+            >
+              {limitSaving ? "Saving…" : "Set 🛡️"}
+            </button>
+          </div>
+          {limitMsg && (
+            <p
+              className="text-xs font-semibold mt-2 text-center"
+              style={{ color: limitMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}
+            >
+              {limitMsg}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* UNCLE QUOTE */}

@@ -42,6 +42,15 @@ async function performTransfer(
     return { ok: false, message: "One of the users is missing from the vault!" };
   }
 
+  // GUARDRAIL: Check daily spend limit
+  const dailyLimit = parseFloat(String(sRes.Item["daily_limit"] ?? 1000));
+  if (amount > dailyLimit) {
+    return {
+      ok: false,
+      message: `Guardrail Triggered! D'Uncle says: That's above your $${dailyLimit} daily limit! 🛑`,
+    };
+  }
+
   const senderBal = parseFloat(String(sRes.Item[currency] ?? 0));
   if (senderBal < amount) {
     return { ok: false, message: "D'Uncle says: Not enough funds, Nephew!" };
@@ -136,6 +145,27 @@ router.get("/get_history", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Get history error");
     res.status(500).json({ error: "Could not fetch history." });
+  }
+});
+
+// UPDATE DAILY LIMIT
+router.post("/update_limit", async (req, res) => {
+  const { username, limit } = req.body as { username: string; limit: number };
+  if (!username || limit == null || isNaN(Number(limit)) || Number(limit) < 0) {
+    res.status(400).json({ error: "Invalid limit value." });
+    return;
+  }
+  try {
+    await dynamo.send(new UpdateCommand({
+      TableName: TABLE,
+      Key: { username },
+      UpdateExpression: "set daily_limit = :v",
+      ExpressionAttributeValues: { ":v": parseFloat(String(limit)) },
+    }));
+    res.json({ message: "Guardrail updated! D'Uncle is watching your wallet. 🛡️" });
+  } catch (err) {
+    req.log.error({ err }, "Update limit error");
+    res.status(500).json({ error: "Could not update the guardrail." });
   }
 });
 
