@@ -428,6 +428,75 @@ interface Transaction {
   status: string;
 }
 
+function ReceiptModal({
+  tx,
+  onClose,
+}: {
+  tx: Transaction;
+  onClose: () => void;
+}) {
+  const isSent = tx.sender === USERNAME;
+  const currencyLabel = tx.currency.replace("balance_", "").toUpperCase();
+  const currencySymbol = tx.currency === "balance_php" ? "₱" : "$";
+  const amountStr = `${isSent ? "−" : "+"}${currencySymbol}${tx.amount} ${currencyLabel}`;
+  const party = isSent ? tx.receiver : tx.sender;
+  const date = new Date(tx.timestamp).toLocaleString("en-US", {
+    month: "long", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const shortId = tx.transaction_id.slice(0, 8).toUpperCase() + "…";
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4 z-50"
+      style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl p-6 w-full max-w-sm"
+        style={{ border: "4px solid #000", boxShadow: "8px 8px 0px #000", transform: "rotate(1deg)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-center mb-5">
+          <span className="text-5xl">🧾</span>
+          <h3 className="text-xl font-semibold text-gray-800 mt-1">Transaction Receipt</h3>
+        </div>
+
+        <div
+          className="space-y-3 p-4 rounded-2xl mb-5"
+          style={{ backgroundColor: "#f9fafb", border: "2px solid #000" }}
+        >
+          {[
+            { label: "Transaction ID", value: shortId, mono: true },
+            { label: "Amount", value: amountStr, color: isSent ? "#db2777" : "#16a34a" },
+            { label: isSent ? "Sent To" : "Received From", value: party },
+            { label: "Status", value: `✅ ${tx.status}` },
+            { label: "Time", value: date },
+          ].map(({ label, value, mono, color }) => (
+            <div key={label} className="flex justify-between items-start text-sm gap-2">
+              <span className="text-gray-500 shrink-0">{label}:</span>
+              <span
+                className={`font-semibold text-right ${mono ? "font-mono text-xs" : ""}`}
+                style={{ color: color ?? "#1f2937" }}
+              >
+                {value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full rounded-full py-3 font-bold text-white"
+          style={{ backgroundColor: "#a78bfa", border: "3px solid #000", boxShadow: "4px 4px 0px #000", cursor: "pointer" }}
+        >
+          Close Receipt 🌈
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ProfileTab({
   balance,
   transactions,
@@ -681,6 +750,7 @@ function App() {
   const [showSend, setShowSend] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   async function fetchBalance() {
     try {
@@ -738,6 +808,10 @@ function App() {
           onClose={() => setShowSend(false)}
           onSent={() => { setTimeout(refreshAll, 500); }}
         />
+      )}
+
+      {selectedTx && (
+        <ReceiptModal tx={selectedTx} onClose={() => setSelectedTx(null)} />
       )}
 
       {/* BRAIN TAB */}
@@ -854,12 +928,14 @@ function App() {
                 return (
                   <div
                     key={tx.transaction_id}
-                    className="flex justify-between items-center p-3 rounded-2xl"
+                    onClick={() => setSelectedTx(tx)}
+                    className="flex justify-between items-center p-3 rounded-2xl transition-transform hover:scale-105 active:scale-95"
                     style={{
                       backgroundColor: bg,
                       border: "3px solid #000",
                       boxShadow: "4px 4px 0px #000",
                       transform: rotate,
+                      cursor: "pointer",
                     }}
                   >
                     <div className="flex items-center gap-3">
