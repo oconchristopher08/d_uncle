@@ -173,7 +173,7 @@ D'Uncle will start on `http://localhost:8080` 🎉
 
 ## 🎯 Future Roadmap
 
-- [ ] **L2 Blockchain Settlement** — Migrate from DynamoDB to a Layer 2 chain (Polygon / Base) for on-chain, trustless transaction settlement
+- [ ] **L2 Blockchain Settlement** — Migrate from DynamoDB to a Layer 2 chain (Multi-Chain) for on-chain, trustless transaction settlement
 - [ ] **AI-Driven FX** — Integrate real-time exchange rate APIs so the Bedrock agent autonomously selects the most cost-effective settlement currency
 - [ ] **Agent Marketplace** — A curated directory of pre-configured AI agents with dedicated D'Uncle budgets, hireable with a single click
 - [ ] **Cross-Chain Identity** — Link @username to wallet addresses across Ethereum, Solana, and other chains for unified agentic identity
@@ -203,7 +203,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 <div align="center">
 
-Built with ☁️ **Amazon Bedrock** · 🐍 **Flask** · 🗄️ **DynamoDB** · 💚 and a lot of doodles
+Built with ☁️ **Amazon Bedrock** · 🐍 **Flask** · 🗄️ **DynamoDB** · 💚 and a lot of colorful
 
 *D'Uncle — Empowering the Agentic Economy, one vault at a time 🌍*
 
