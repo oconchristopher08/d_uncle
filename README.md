@@ -488,7 +488,7 @@ D'Uncle is architected for horizontal scalability from day one.
 - [ ] Spending analytics dashboard
 
 ### Phase 3 — Blockchain Settlement 🔜
-- [ ] Layer 2 integration (Polygon / Base)
+- [ ] Layer 2 integration
 - [ ] On-chain receipt generation
 - [ ] Stablecoin settlement rails
 - [ ] Cross-chain identity linking
